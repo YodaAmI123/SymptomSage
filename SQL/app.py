@@ -8,17 +8,17 @@ app.secret_key = 'your_secret_key'
 
 UPLOAD_FOLDER = 'static/uploads/'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-# Database connection
+
 def get_db():
     db = mysql.connector.connect(
         host="localhost",
         user="root",
-        password="kamal2005",
+        password="UR_PSWD",
         database="symptomsage"
     )
     return db
 
-# Create tables
+
 with app.app_context():
     db = get_db()
     cursor = db.cursor()

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Health Tracker</title>
+</head>
+<body>
+    <h1>Health Tracker</h1>
+    <table>
+        <tr>
+            <th>Scan Path</th>
+            <th>Prescription</th>
+        </tr>
+        {% for data in patient_data %}
+        <tr>
+            <td>{{ data[0] }}</td>
+            <td>{{ data[1] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    <h2>Medication Tracker</h2>
+    {% for data in patient_data %}
+        <h3>Scan Path: {{ data[0] }}</h3>
+        <p>Prescription: {{ data[1] }}</p>
+        <form>
+            {% for medicine in data[1].split(',') %}
+                <label><input type="checkbox"> {{ medicine.strip() }}</label><br>
+            {% endfor %}
+            <input type="submit" value="Submit">
+        </form>
+    {% endfor %}
+</body>
+</html>

@@ -2,23 +2,24 @@ from flask import Flask, render_template, redirect, url_for, request, session
 import mysql.connector
 import os
 from werkzeug.utils import secure_filename
+
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
-
 
 UPLOAD_FOLDER = 'static/uploads/'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+# Database connection
 def get_db():
     db = mysql.connector.connect(
         host="localhost",
         user="root",
-        password="UR_PSWD",
+        password="123",
         database="symptomsage"
     )
     return db
 
-
+# Create tables
 with app.app_context():
     db = get_db()
     cursor = db.cursor()
@@ -78,7 +79,7 @@ def doctor_signup():
         hospital = request.form['Hospital']
         db = get_db()
         cursor = db.cursor()
-        cursor.execute("INSERT INTO doctors (name, age, gender, password, hospital) VALUES (%s, %s, %s, %s, %s)", (name, age, gender, password,hospital))
+        cursor.execute("INSERT INTO doctors (name, age, gender, password, hospital) VALUES (%s, %s, %s, %s, %s)", (name, age, gender, password, hospital))
         db.commit()
         cursor.close()
         db.close()
@@ -178,16 +179,61 @@ def patient_dashboard():
         cursor.close()
         db.close()
 
-@app.route('/health_tracker')
+@app.route('/health_tracker', methods=['GET', 'POST'])
 def health_tracker():
     patient_id = session['patient_id']
     db = get_db()
     cursor = db.cursor()
+
+    # Create the medication_tracking table if it doesn't exist
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS medication_tracking (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            patient_id INT,
+            medicine VARCHAR(255),
+            taken VARCHAR(10),
+            FOREIGN KEY (patient_id) REFERENCES patients(id)
+        )
+    ''')
+    db.commit()
+
     cursor.execute("SELECT scan_path, prescription FROM patients WHERE id = %s", (patient_id,))
     patient_data = cursor.fetchall()
+
+    message = None  # Initialize message variable
+
+    if request.method == 'POST':
+        all_medicines_taken = True  # Flag to track if all medicines are taken
+        for data in patient_data:
+            
+            prescription = data[1]
+            medicines = prescription.split(', ')
+            for medicine in medicines:
+                taken = request.form.get(medicine, 'off')
+                if taken == 'off':
+                    all_medicines_taken = False
+                    break
+            if not all_medicines_taken:
+                break
+
+        if all_medicines_taken:
+            message = "All medicines taken for today"
+        else:
+            message = "Some medicines are not taken"
+
+        # Store the medication tracking data in the database
+        for data in patient_data:
+            prescription = data[1]
+            medicines = prescription.split(', ')
+            for medicine in medicines:
+                taken = request.form.get(medicine, 'off')
+                cursor.execute("INSERT INTO medication_tracking (patient_id, medicine, taken) VALUES (%s, %s, %s)",
+                               (patient_id, medicine, taken))
+        db.commit()
+
     cursor.close()
     db.close()
-    return render_template('health_tracker.html', patient_data=patient_data)
+    return render_template('health_tracker.html', patient_data=patient_data, message=message)
 
 @app.route('/add_patient', methods=['GET', 'POST'])
 def add_patient():
@@ -197,7 +243,12 @@ def add_patient():
         gender = request.form['gender']
         result = request.form['result']
         detailed_rep = request.form['detailed_rep']
-        prescription = request.form['prescription']
+        num_medicines = int(request.form['num_medicines'])
+        prescription = []
+        for i in range(num_medicines):
+            medicine = request.form[f'medicine_{i}']
+            prescription.append(medicine)
+        prescription = ', '.join(prescription)
         doctor_id = session['doctor_id']
         db = get_db()
         cursor = db.cursor()
@@ -241,6 +292,7 @@ def add_patient():
         return redirect(url_for('doctor_dashboard'))
 
     return render_template('add_patient.html')
+
 @app.route('/remove_patient', methods=['GET', 'POST'])
 def remove_patient():
     if request.method == 'POST':
